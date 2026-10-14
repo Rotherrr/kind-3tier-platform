@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: three-tier
+data:
+  MONGO_HOST: mongodb.three-tier.svc.cluster.local
+  MONGO_DB: app
+  PORT: "3000"

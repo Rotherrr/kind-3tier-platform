@@ -1,0 +1,14 @@
+# Requires the ServiceMonitor CRD (installed by kube-prometheus-stack).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: backend
+  namespace: three-tier
+  labels: { app.kubernetes.io/part-of: three-tier-platform }
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: backend }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

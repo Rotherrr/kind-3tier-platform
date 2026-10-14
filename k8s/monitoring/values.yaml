@@ -1,0 +1,51 @@
+# kube-prometheus-stack values tuned for a laptop-sized Kind cluster.
+fullnameOverride: kps
+
+# Kind control-plane components bind to localhost -> their targets would show as "down".
+kubeEtcd: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeProxy: { enabled: false }
+
+alertmanager:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    # discover ServiceMonitors in any namespace, without requiring a Helm release label
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests: { cpu: 100m, memory: 400Mi }
+      limits: { memory: 1Gi }
+
+grafana:
+  adminUser: admin
+  adminPassword: prom-operator       # local-only demo credential; never reuse outside a laptop
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 384Mi }
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts: [grafana.localtest.me]    # *.localtest.me resolves to 127.0.0.1 - no /etc/hosts edit needed
+    path: /
+  # Dashboards-as-code: Node Exporter Full (ID 1860) is provisioned automatically.
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: community
+          orgId: 1
+          folder: Community
+          type: file
+          disableDeletion: false
+          editable: true
+          options: { path: /var/lib/grafana/dashboards/community }
+  dashboards:
+    community:
+      node-exporter-full:
+        gnetId: 1860
+        revision: 37
+        datasource: Prometheus

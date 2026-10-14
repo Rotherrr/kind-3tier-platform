@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Three-Tier on Kind</title>
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem}
+    form{display:flex;gap:.5rem}input{flex:1;padding:.5rem}button{padding:.5rem 1rem}
+    li{margin:.4rem 0}small{color:#666}
+  </style>
+</head>
+<body>
+  <h1>☸️ Three-Tier on Kind</h1>
+  <p>nginx frontend → NGINX Ingress → Node.js API → MongoDB</p>
+  <form id="f"><input id="t" maxlength="280" placeholder="Write a message…" required><button>Send</button></form>
+  <ul id="l"></ul>
+  <script>
+    const l = document.getElementById('l');
+    async function load() {
+      const r = await fetch('/api/messages');
+      const data = r.ok ? await r.json() : [];
+      l.replaceChildren(...data.map(m => {
+        const li = document.createElement('li');
+        li.textContent = m.text + ' ';
+        const s = document.createElement('small');
+        s.textContent = new Date(m.createdAt).toLocaleString();
+        li.append(s);
+        return li;
+      }));
+    }
+    document.getElementById('f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const t = document.getElementById('t');
+      await fetch('/api/messages', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text: t.value})});
+      t.value = ''; load();
+    });
+    load();
+  </script>
+</body>
+</html>

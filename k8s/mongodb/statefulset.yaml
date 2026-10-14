@@ -34,13 +34,14 @@ spec:
               valueFrom: { secretKeyRef: { name: mongodb-credentials, key: MONGO_PASSWORD } }
           resources:
             requests: { cpu: 100m, memory: 256Mi }
-            limits: { cpu: 500m, memory: 512Mi }
+            limits: { cpu: "1", memory: 512Mi }
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
           startupProbe:
             exec: { command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"] }
             periodSeconds: 5
+            timeoutSeconds: 10
             failureThreshold: 24
           readinessProbe:
             exec: { command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"] }

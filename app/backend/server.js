@@ -16,22 +16,9 @@ const httpDuration = new client.Histogram({
   buckets: [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2],
 });
 
-// ---- mongo (connect with retry; readiness reflects DB state) ----
+// ---- mongo: the driver connects lazily and reconnects on its own ----
 const mongo = new MongoClient(uri, { serverSelectionTimeoutMS: 3000 });
-let messages = null;
-async function connectLoop() {
-  for (;;) {
-    try {
-      await mongo.connect();
-      messages = mongo.db(MONGO_DB).collection('messages');
-      console.log(JSON.stringify({ level: 'info', msg: 'mongo connected' }));
-      return;
-    } catch (e) {
-      console.error(JSON.stringify({ level: 'warn', msg: 'mongo unavailable, retrying', err: e.message }));
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
-}
+const messagesCol = () => mongo.db(MONGO_DB).collection('messages');
 
 const app = express();
 app.disable('x-powered-by');
@@ -57,21 +44,28 @@ app.get('/metrics', async (_req, res) => {
 });
 
 app.get('/api/messages', async (_req, res) => {
-  if (!messages) return res.status(503).json({ error: 'database not ready' });
-  const docs = await messages.find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(50).toArray();
-  res.json(docs);
+  try {
+    const docs = await messagesCol().find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(50).toArray();
+    res.json(docs);
+  } catch (e) {
+    console.error(JSON.stringify({ level: 'error', msg: 'read failed', err: e.message }));
+    res.status(503).json({ error: 'database not ready' });
+  }
 });
 app.post('/api/messages', async (req, res) => {
   const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
   if (!text || text.length > 280) return res.status(400).json({ error: 'text must be 1-280 chars' });
-  if (!messages) return res.status(503).json({ error: 'database not ready' });
   const doc = { text, createdAt: new Date() };
-  await messages.insertOne({ ...doc });
-  res.status(201).json(doc);
+  try {
+    await messagesCol().insertOne({ ...doc });
+    res.status(201).json(doc);
+  } catch (e) {
+    console.error(JSON.stringify({ level: 'error', msg: 'write failed', err: e.message }));
+    res.status(503).json({ error: 'database not ready' });
+  }
 });
 
 const server = app.listen(PORT, () => console.log(JSON.stringify({ level: 'info', msg: `listening on ${PORT}` })));
-connectLoop();
 
 // graceful shutdown (Kubernetes sends SIGTERM)
 process.on('SIGTERM', () => {

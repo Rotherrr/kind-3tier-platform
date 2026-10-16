@@ -56,9 +56,9 @@ secrets: ## Create the MongoDB Secret (random password, not stored in git)
 
 deploy: secrets ## Apply all application manifests
 	kubectl apply -k k8s/
-	kubectl -n $(NAMESPACE) rollout status statefulset/mongodb --timeout=180s
-	kubectl -n $(NAMESPACE) rollout status deployment/backend --timeout=120s
-	kubectl -n $(NAMESPACE) rollout status deployment/frontend --timeout=120s
+	kubectl -n $(NAMESPACE) rollout status statefulset/mongodb --timeout=300s
+	kubectl -n $(NAMESPACE) rollout status deployment/backend --timeout=300s
+	kubectl -n $(NAMESPACE) rollout status deployment/frontend --timeout=300s
 
 smoke: ## End-to-end smoke test through the ingress
 	@./scripts/smoke-test.sh

@@ -2,12 +2,17 @@ name: ci
 on:
   push: { branches: [main] }
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install kubeconform
         run: |
           curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
@@ -24,15 +29,18 @@ jobs:
         with: { dockerfile: app/frontend/Dockerfile }
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: lint
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Full environment + smoke test
         run: make up
       - name: Dump state on failure
         if: failure()
         run: |
-          kubectl get pods -A
-          kubectl -n three-tier describe pods | tail -100
+          kubectl get pods -A -o wide || true
+          kubectl -n three-tier get events --sort-by=.lastTimestamp | tail -40 || true
+          kubectl -n three-tier describe pods | tail -150 || true
+          kubectl -n three-tier logs deploy/backend --all-containers --tail=80 || true
+          kubectl -n three-tier logs sts/mongodb --tail=40 || true

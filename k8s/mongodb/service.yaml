@@ -6,6 +6,7 @@ metadata:
   labels: { app.kubernetes.io/name: mongodb, app.kubernetes.io/part-of: three-tier-platform }
 spec:
   clusterIP: None            # headless: stable DNS for the StatefulSet
+  publishNotReadyAddresses: true
   selector: { app.kubernetes.io/name: mongodb }
   ports:
     - name: mongo

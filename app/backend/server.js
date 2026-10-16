@@ -16,9 +16,41 @@ const httpDuration = new client.Histogram({
   buckets: [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2],
 });
 
-// ---- mongo: the driver connects lazily and reconnects on its own ----
-const mongo = new MongoClient(uri, { serverSelectionTimeoutMS: 3000 });
-const messagesCol = () => mongo.db(MONGO_DB).collection('messages');
+// ---- mongo: resilient client with auto-reconnect on failure ----
+let mongoClient = null;
+let isConnecting = null;
+
+async function getClient() {
+  if (mongoClient && mongoClient.topology && !mongoClient.topology.isClosed()) {
+    return mongoClient;
+  }
+  if (isConnecting) return isConnecting;
+
+  isConnecting = (async () => {
+    try {
+      if (mongoClient) {
+        await mongoClient.close().catch(() => {});
+      }
+      const client = new MongoClient(uri, { serverSelectionTimeoutMS: 3000 });
+      await client.connect();
+      mongoClient = client;
+      return mongoClient;
+    } finally {
+      isConnecting = null;
+    }
+  })();
+
+  return isConnecting;
+}
+
+const getMessagesCol = async () => {
+  const c = await getClient();
+  return c.db(MONGO_DB).collection('messages');
+};
+
+getClient().catch((err) => {
+  console.error(JSON.stringify({ level: 'warn', msg: 'initial mongo connect pending', err: err.message }));
+});
 
 const app = express();
 app.disable('x-powered-by');
@@ -32,7 +64,8 @@ app.use((req, res, next) => {
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));   // liveness
 app.get('/readyz', async (_req, res) => {                          // readiness
   try {
-    await mongo.db('admin').command({ ping: 1 });
+    const c = await getClient();
+    await c.db('admin').command({ ping: 1 });
     res.status(200).send('ready');
   } catch {
     res.status(503).send('mongo not ready');
@@ -45,7 +78,8 @@ app.get('/metrics', async (_req, res) => {
 
 app.get('/api/messages', async (_req, res) => {
   try {
-    const docs = await messagesCol().find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(50).toArray();
+    const col = await getMessagesCol();
+    const docs = await col.find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(50).toArray();
     res.json(docs);
   } catch (e) {
     console.error(JSON.stringify({ level: 'error', msg: 'read failed', err: e.message }));
@@ -57,7 +91,8 @@ app.post('/api/messages', async (req, res) => {
   if (!text || text.length > 280) return res.status(400).json({ error: 'text must be 1-280 chars' });
   const doc = { text, createdAt: new Date() };
   try {
-    await messagesCol().insertOne({ ...doc });
+    const col = await getMessagesCol();
+    await col.insertOne({ ...doc });
     res.status(201).json(doc);
   } catch (e) {
     console.error(JSON.stringify({ level: 'error', msg: 'write failed', err: e.message }));
@@ -69,5 +104,8 @@ const server = app.listen(PORT, () => console.log(JSON.stringify({ level: 'info'
 
 // graceful shutdown (Kubernetes sends SIGTERM)
 process.on('SIGTERM', () => {
-  server.close(async () => { await mongo.close(); process.exit(0); });
+  server.close(async () => {
+    if (mongoClient) await mongoClient.close().catch(() => {});
+    process.exit(0);
+  });
 });

@@ -49,8 +49,9 @@ spec:
             capabilities: { drop: ["ALL"] }
           readinessProbe:
             httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 10
             periodSeconds: 5
-            failureThreshold: 3
+            failureThreshold: 6
           livenessProbe:
             httpGet: { path: /healthz, port: http }
             initialDelaySeconds: 10

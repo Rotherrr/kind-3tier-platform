@@ -17,7 +17,7 @@ retry() {
 }
 
 page=$(retry curl -fsS "$BASE/") || fail "frontend unreachable"
-if grep -q "Three-Tier" <<<"$page"; then ok "frontend served via ingress"; else fail "frontend content"; fi
+if grep -q "Messages" <<<"$page"; then ok "frontend served via ingress"; else fail "frontend content"; fi
 
 MSG="smoke-$(date +%s)"
 if retry curl -fsS -X POST "$BASE/api/messages" -H 'Content-Type: application/json' -d "{\"text\":\"$MSG\"}" >/dev/null; then

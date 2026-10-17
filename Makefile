@@ -55,7 +55,9 @@ secrets: ## Create the MongoDB Secret (random password, not stored in git)
 	./scripts/create-secrets.sh
 
 deploy: secrets ## Apply all application manifests
-	kubectl apply -k k8s/
+	@for i in 1 2 3; do \
+		kubectl apply -k k8s/ && break || sleep 3; \
+	done
 	kubectl -n $(NAMESPACE) rollout status statefulset/mongodb --timeout=300s
 	kubectl -n $(NAMESPACE) wait --for=condition=ready pod -l app.kubernetes.io/name=mongodb --timeout=300s
 	kubectl -n $(NAMESPACE) rollout status deployment/backend --timeout=300s

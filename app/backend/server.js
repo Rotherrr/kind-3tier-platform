@@ -5,8 +5,7 @@ const client = require('prom-client');
 
 const PORT = Number(process.env.PORT || 3000);
 const { MONGO_USER = '', MONGO_PASSWORD = '', MONGO_HOST = 'mongodb', MONGO_DB = 'app' } = process.env;
-const uri = `mongodb://${encodeURIComponent(MONGO_USER)}:${encodeURIComponent(MONGO_PASSWORD)}@${MONGO_HOST}:27017/${MONGO_DB}?authSource=admin`;
-
+const uri = `mongodb://${encodeURIComponent(MONGO_USER)}:${encodeURIComponent(MONGO_PASSWORD)}@${MONGO_HOST}:27017/${MONGO_DB}?authSource=${MONGO_DB}`;
 // ---- metrics ----
 client.collectDefaultMetrics();
 const httpDuration = new client.Histogram({
@@ -62,15 +61,16 @@ app.use((req, res, next) => {
 });
 
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));   // liveness
-app.get('/readyz', async (_req, res) => {                          // readiness
+app.get('/readyz', async (_req, res) => {
   try {
     const c = await getClient();
-    await c.db('admin').command({ ping: 1 });
+    await c.db(MONGO_DB).command({ ping: 1 });
     res.status(200).send('ready');
   } catch {
     res.status(503).send('mongo not ready');
   }
 });
+
 app.get('/metrics', async (_req, res) => {
   res.set('Content-Type', client.register.contentType);
   res.send(await client.register.metrics());

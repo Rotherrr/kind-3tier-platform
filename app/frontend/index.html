@@ -1,57 +1,300 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Three-Tier on Kind</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Messages · three-tier demo</title>
   <style>
-    body{font-family:system-ui,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem}
-    form{display:flex;gap:.5rem}input{flex:1;padding:.5rem}button{padding:.5rem 1rem}
-    li{margin:.4rem 0;display:flex;align-items:center;gap:.5rem}
-    small{color:#666;margin-left:auto}
-    .del-btn{background:none;border:none;cursor:pointer;padding:2px 5px;font-size:.9rem}
+    :root {
+      --bg: #121316;
+      --panel: #1a1c20;
+      --line: #2a2d33;
+      --text: #d9dce1;
+      --dim: #8a8f99;
+      --accent: #4f8cff;
+      --bad: #e5645e;
+      --good: #5cb85c;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 40px 16px 80px; }
+
+    h1 { margin: 0; font-size: 20px; font-weight: 600; }
+    .sub { margin: 4px 0 0; color: var(--dim); font: 12px var(--mono); }
+
+    .bar { display: flex; justify-content: space-between; align-items: center; margin: 22px 0 10px; font: 12px var(--mono); color: var(--dim); }
+    .dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--dim); }
+    .bar[data-state="up"] .dot { background: var(--good); }
+    .bar[data-state="down"] .dot { background: var(--bad); }
+    .bar[data-state="down"] #state { color: var(--bad); }
+
+    form { display: flex; gap: 8px; }
+    input {
+      flex: 1; min-width: 0; padding: 9px 12px; font: inherit; color: var(--text);
+      background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    input.bad { border-color: var(--bad); }
+    button.send {
+      padding: 0 18px; font: inherit; font-weight: 500; color: #fff; cursor: pointer;
+      background: var(--accent); border: 0; border-radius: 6px;
+    }
+    button.send:hover { background: #6a9dff; }
+    .chars { margin: 6px 2px 0; height: 1.2em; font: 11px var(--mono); color: var(--dim); text-align: right; }
+    .chars.near { color: #d9a441; }
+
+    ul { list-style: none; margin: 12px 0 0; padding: 0; border-top: 1px solid var(--line); }
+    li {
+      display: flex; align-items: baseline; gap: 12px; padding: 11px 2px; border-bottom: 1px solid var(--line);
+      transition: opacity .18s;
+    }
+    li.new { animation: appear .25s ease-out; }
+    li.pending { opacity: .5; }
+    li.gone { opacity: 0; }
+    @keyframes appear { from { opacity: 0; transform: translateY(-4px); } }
+    .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .when { font: 12px var(--mono); color: var(--dim); white-space: nowrap; }
+    .del { padding: 0 2px; font: 12px var(--mono); color: var(--dim); background: none; border: 0; cursor: pointer; }
+    .del:hover:not(:disabled) { color: var(--bad); text-decoration: underline; }
+    .del:disabled { opacity: .35; cursor: default; }
+
+    .hint { margin: 28px 0; color: var(--dim); text-align: center; font-size: 14px; }
+    .hint button { margin-left: 6px; font: inherit; color: var(--accent); background: none; border: 0; cursor: pointer; text-decoration: underline; }
+
+    #toast {
+      position: fixed; left: 16px; bottom: 16px; max-width: calc(100vw - 32px); padding: 10px 14px;
+      font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+      border-radius: 6px; opacity: 0; transform: translateY(6px); pointer-events: none; transition: opacity .2s, transform .2s;
+    }
+    #toast.show { opacity: 1; transform: none; }
+    #toast.err { border-left-color: var(--bad); }
+
+    @media (max-width: 480px) {
+      .wrap { padding-top: 24px; }
+      .when { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
   </style>
 </head>
 <body>
-  <h1>☸️ Three-Tier on Kind</h1>
-  <p>nginx frontend → NGINX Ingress → Node.js API → MongoDB</p>
-  <form id="f"><input id="t" maxlength="280" placeholder="Write a message…" required><button>Send</button></form>
-  <ul id="l"></ul>
+  <div class="wrap">
+    <h1>Messages</h1>
+    <p class="sub">frontend → ingress → api → mongodb</p>
+
+    <div class="bar" id="bar" data-state="wait">
+      <span><span class="dot"></span><span id="state">connecting…</span></span>
+      <span id="count">0 messages</span>
+    </div>
+
+    <form id="form" autocomplete="off">
+      <input id="text" maxlength="280" placeholder="Write a message" aria-label="Message">
+      <button class="send">Send</button>
+    </form>
+    <div class="chars" id="chars"></div>
+
+    <ul id="list"></ul>
+    <p class="hint" id="hint" hidden></p>
+  </div>
+
+  <div id="toast" role="status"></div>
+  <noscript>This page needs JavaScript.</noscript>
+
   <script>
-    const l = document.getElementById('l');
-    async function load() {
-      const r = await fetch('/api/messages?_=' + Date.now());
-      const data = r.ok ? await r.json() : [];
-      console.log('Pobrane wiadomości z bazy:', data);
-      l.replaceChildren(...data.map(m => {
+    const API = '/api/messages';
+    const MAX = 280;
+
+    const $ = (id) => document.getElementById(id);
+    const list = $('list'), form = $('form'), input = $('text');
+
+    let items = [];          // what we show: server messages + optimistic ones
+    let seq = 0;             // lets us ignore stale GET responses
+    let loaded = false;
+    const deleting = new Set();
+
+    // fetch with a timeout, so a dead API doesn't leave us hanging
+    function call(url, opts = {}) {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 8000);
+      return fetch(url, { ...opts, signal: ctl.signal }).finally(() => clearTimeout(timer));
+    }
+
+    let toastTimer;
+    function say(msg, isError) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.className = 'show' + (isError ? ' err' : '');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+    }
+
+    function setState(up) {
+      $('bar').dataset.state = up ? 'up' : 'down';
+      $('state').textContent = up ? 'api online' : 'api offline';
+    }
+
+    function fmt(iso) {
+      const d = new Date(iso);
+      if (isNaN(d)) return '';
+      const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return d.toDateString() === new Date().toDateString()
+        ? time
+        : d.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ' ' + time;
+    }
+
+    function render() {
+      list.replaceChildren(...items.map((m) => {
         const li = document.createElement('li');
+        if (m.pending) li.classList.add('pending');
+        if (m.gone) li.classList.add('gone');
+        if (m.fresh) { li.classList.add('new'); m.fresh = false; }
+        li._m = m;
 
-        const span = document.createElement('span');
-        span.textContent = m.text;
+        const text = document.createElement('span');
+        text.className = 'text';
+        text.textContent = m.text;
 
-        const s = document.createElement('small');
-        s.textContent = new Date(m.createdAt).toLocaleString();
+        const when = document.createElement('span');
+        when.className = 'when';
+        when.textContent = m.pending ? 'sending…' : fmt(m.createdAt);
 
-        const btn = document.createElement('button');
-        btn.textContent = '❌';
-        btn.className = 'del-btn';
-        btn.title = 'Delete message';
-        btn.onclick = async () => {
-          if (m._id) {
-            await fetch(`/api/messages/${m._id}`, { method: 'DELETE' });
-            load();
-          }
-        };
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'del';
+        del.textContent = 'delete';
+        del.disabled = !m._id;
+        del.onclick = () => remove(m);
 
-        li.append(span, s, btn);
+        li.append(text, when, del);
         return li;
       }));
+
+      const n = items.filter((m) => !m.gone).length;
+      $('count').textContent = n + (n === 1 ? ' message' : ' messages');
+
+      const hint = $('hint');
+      hint.hidden = !loaded || n > 0;
+      if (!hint.hidden) {
+        const offline = $('bar').dataset.state === 'down';
+        hint.textContent = offline ? 'Cannot reach the API, retrying…' : 'Nothing here yet. Write the first message.';
+        if (offline) {
+          const b = document.createElement('button');
+          b.textContent = 'retry now';
+          b.onclick = load;
+          hint.append(b);
+        }
+      }
     }
-    document.getElementById('f').addEventListener('submit', async (e) => {
+
+    async function load() {
+      const mine = ++seq;
+      try {
+        // the timestamp param keeps browsers/proxies from serving an old list
+        const res = await call(API + '?_=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (mine !== seq) return;
+        const pending = items.filter((m) => m.pending);
+        const fromServer = data.filter((m) => !deleting.has(m._id));
+        items = [...pending, ...fromServer];
+        setState(true);
+      } catch (e) {
+        if (mine !== seq) return;
+        setState(false);
+        if (!loaded) say('Could not reach the API.', true);
+      }
+      loaded = true;
+      render();
+    }
+
+    async function add(text) {
+      const tmp = { text, createdAt: new Date().toISOString(), pending: true, fresh: true };
+      items.unshift(tmp);
+      render();
+      try {
+        const res = await call(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok) {
+          let why = 'server said ' + res.status;
+          try { why = (await res.json()).error || why; } catch (_) {}
+          throw Object.assign(new Error(why), { fromServer: true });
+        }
+        tmp.pending = false;
+        load();   // fetch the real list so we get the _id
+      } catch (e) {
+        items = items.filter((m) => m !== tmp);
+        render();
+        if (!input.value) { input.value = text; countChars(); }
+        say(e.fromServer ? 'Rejected: ' + e.message : 'Network problem, message not sent.', true);
+        if (!e.fromServer) setState(false);
+      }
+    }
+
+    async function remove(m) {
+      if (!m._id) return;
+      deleting.add(m._id);
+      m.gone = true;
+      const li = [...list.children].find((el) => el._m === m);
+      if (li) li.classList.add('gone');
+      setTimeout(() => {
+        if (!m.gone) return;   // delete failed in the meantime, it was already restored
+        items = items.filter((x) => x !== m);
+        render();
+      }, 180);
+      try {
+        const res = await call(API + '/' + encodeURIComponent(m._id), { method: 'DELETE' });
+        if (!res.ok && res.status !== 404) throw new Error('HTTP ' + res.status);
+      } catch (e) {
+        m.gone = false;
+        if (!items.includes(m)) items.push(m);
+        items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        render();
+        say('Could not delete that message.', true);
+      } finally {
+        deleting.delete(m._id);
+      }
+    }
+
+    function countChars() {
+      const n = input.value.length;
+      const c = $('chars');
+      c.textContent = n > 200 ? n + ' / ' + MAX : '';
+      c.classList.toggle('near', n > MAX - 30);
+    }
+
+    input.addEventListener('input', () => { input.classList.remove('bad'); countChars(); });
+
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const t = document.getElementById('t');
-      await fetch('/api/messages', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text: t.value})});
-      t.value = ''; load();
+      const text = input.value.trim();
+      if (!text) {
+        input.classList.add('bad');
+        say('Write something first.', true);
+        return;
+      }
+      if (text.length > MAX) {
+        say('Too long, ' + MAX + ' characters max.', true);
+        return;
+      }
+      input.value = '';
+      countChars();
+      add(text);
     });
+
+    window.addEventListener('online', load);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+    setInterval(() => { if (!document.hidden) load(); }, 10000);
+
     load();
   </script>
 </body>

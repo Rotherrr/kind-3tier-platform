@@ -92,7 +92,7 @@ Ports **80** and **443** must be free on the host. Allow ~6 GB RAM for Docker.
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/<your-user>/kind-3tier-platform.git
+git clone https://github.com/Rotherrr/kind-3tier-platform.git
 cd kind-3tier-platform
 make up
 ```

@@ -40,8 +40,6 @@ spec:
               valueFrom: { secretKeyRef: { name: mongodb-credentials, key: MONGO_USER } }
             - name: MONGO_PASSWORD
               valueFrom: { secretKeyRef: { name: mongodb-credentials, key: MONGO_PASSWORD } }
-            - name: MONGO_HOST
-              value: "mongodb-0.mongodb.three-tier.svc.cluster.local"
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { cpu: 300m, memory: 192Mi }

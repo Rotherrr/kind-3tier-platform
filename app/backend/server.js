@@ -5,8 +5,7 @@ const client = require('prom-client');
 
 const PORT = Number(process.env.PORT || 3000);
 const { MONGO_USER = '', MONGO_PASSWORD = '', MONGO_HOST = 'mongodb', MONGO_DB = 'app' } = process.env;
-const uri = `mongodb://${encodeURIComponent(MONGO_USER)}:${encodeURIComponent(MONGO_PASSWORD)}@${MONGO_HOST}:27017/${MONGO_DB}?authSource=${MONGO_DB}`;
-// ---- metrics ----
+const uri = `mongodb://${encodeURIComponent(MONGO_USER)}:${encodeURIComponent(MONGO_PASSWORD)}@${MONGO_HOST}:27017/${MONGO_DB}?authSource=admin`;
 client.collectDefaultMetrics();
 const httpDuration = new client.Histogram({
   name: 'http_request_duration_seconds',
@@ -20,16 +19,13 @@ let mongoClient = null;
 let isConnecting = null;
 
 async function getClient() {
-  if (mongoClient && mongoClient.topology && !mongoClient.topology.isClosed()) {
+  if (mongoClient) {
     return mongoClient;
   }
   if (isConnecting) return isConnecting;
-
+  
   isConnecting = (async () => {
     try {
-      if (mongoClient) {
-        await mongoClient.close().catch(() => {});
-      }
       const client = new MongoClient(uri, { serverSelectionTimeoutMS: 3000 });
       await client.connect();
       mongoClient = client;

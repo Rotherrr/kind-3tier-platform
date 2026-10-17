@@ -1,11 +1,12 @@
 'use strict';
 const express = require('express');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const client = require('prom-client');
 
 const PORT = Number(process.env.PORT || 3000);
 const { MONGO_USER = '', MONGO_PASSWORD = '', MONGO_HOST = 'mongodb', MONGO_DB = 'app' } = process.env;
 const uri = `mongodb://${encodeURIComponent(MONGO_USER)}:${encodeURIComponent(MONGO_PASSWORD)}@${MONGO_HOST}:27017/${MONGO_DB}?authSource=admin`;
+
 client.collectDefaultMetrics();
 const httpDuration = new client.Histogram({
   name: 'http_request_duration_seconds',
@@ -75,13 +76,16 @@ app.get('/metrics', async (_req, res) => {
 app.get('/api/messages', async (_req, res) => {
   try {
     const col = await getMessagesCol();
-    const docs = await col.find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(50).toArray();
+    const docs = await col.find({}).sort({ createdAt: -1 }).limit(50).toArray();
     res.json(docs);
   } catch (e) {
     console.error(JSON.stringify({ level: 'error', msg: 'read failed', err: e.message }));
     res.status(503).json({ error: 'database not ready' });
   }
 });
+
+
+
 app.post('/api/messages', async (req, res) => {
   const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
   if (!text || text.length > 280) return res.status(400).json({ error: 'text must be 1-280 chars' });
@@ -95,6 +99,22 @@ app.post('/api/messages', async (req, res) => {
     res.status(503).json({ error: 'database not ready' });
   }
 });
+
+app.delete('/api/messages/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const col = await getMessagesCol();
+    const result = await col.deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'message not found' });
+    }
+    res.status(200).json({ status: 'ok' });
+  } catch (e) {
+    console.error(JSON.stringify({ level: 'error', msg: 'delete failed', err: e.message }));
+    res.status(500).json({ error: 'failed to delete message' });
+  }
+});
+
 
 const server = app.listen(PORT, () => console.log(JSON.stringify({ level: 'info', msg: `listening on ${PORT}` })));
 
